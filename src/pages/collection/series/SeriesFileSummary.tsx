@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useParams } from 'react-router';
 import { mdiLoading, mdiOpenInNew } from '@mdi/js';
 import { Icon } from '@mdi/react';
@@ -6,8 +6,8 @@ import cx from 'classnames';
 import { find, forEach, get, map, omit, toNumber } from 'lodash';
 import prettyBytes from 'pretty-bytes';
 
+import GroupFilterPanel from '@/components/Collection/Files/GroupFilterPanel';
 import Button from '@/components/Input/Button';
-import Checkbox from '@/components/Input/Checkbox';
 import ShokoPanel from '@/components/Panels/ShokoPanel';
 import { useSeriesFileSummaryQuery } from '@/core/react-query/webui/queries';
 import { dayjs } from '@/core/util';
@@ -103,12 +103,11 @@ const SummaryGroup = React.memo(
       if (group.AudioCodecs) {
         conditions.push(group.AudioCodecs.toUpperCase());
       }
+      if (group.AudioStreamCount !== undefined) {
+        conditions.push(`${group.AudioStreamCount} Audio Track${group.AudioStreamCount === 1 ? '' : 's'}`);
+      }
       if (group.AudioLanguages) {
-        if (group.AudioStreamCount !== undefined) {
-          conditions.push(`Multi Audio (${group.AudioLanguages.join(', ')})`);
-        } else {
-          conditions.push(group.AudioLanguages.join(', '));
-        }
+        conditions.push(group.AudioLanguages.join(', '));
       }
       return conditions.length ? conditions.join(' | ') : '-';
     }, [group]);
@@ -117,12 +116,11 @@ const SummaryGroup = React.memo(
       if (group.SubtitleCodecs) {
         conditions.push(group.SubtitleCodecs.toUpperCase());
       }
+      if (group.SubtitleStreamCount !== undefined) {
+        conditions.push(`${group.SubtitleStreamCount} Subtitle Track${group.SubtitleStreamCount === 1 ? '' : 's'}`);
+      }
       if (group.SubtitleLanguages) {
-        if (group.SubtitleStreamCount !== undefined) {
-          conditions.push(`Multi Audio (${group.SubtitleLanguages.join(', ')})`);
-        } else {
-          conditions.push(group.SubtitleLanguages.join(', '));
-        }
+        conditions.push(group.SubtitleLanguages.join(', '));
       }
       return conditions.length ? conditions.join(' | ') : '-';
     }, [group]);
@@ -240,38 +238,6 @@ const FileOverview = React.memo(({ summary }: { summary: FileOverviewProps }) =>
   </ShokoPanel>
 ));
 
-const groupFilterMap = {
-  GroupName: 'Release Group',
-  FileVersion: 'Video Version',
-  FileLocation: 'Location',
-  AudioLanguages: 'Audio Language',
-  SubtitleLanguages: 'Subtitle Language',
-  VideoResolution: 'Resolution',
-};
-type GroupFilterPanelProps = {
-  filter: Set<string>;
-  onFilterChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
-};
-const GroupFilterPanel = React.memo(({ filter, onFilterChange }: GroupFilterPanelProps) => (
-  <ShokoPanel
-    title="Grouping Options"
-    contentClassName="flex flex-col gap-y-2 rounded-lg bg-panel-input p-6"
-    transparent
-    fullHeight={false}
-  >
-    {Object.keys(groupFilterMap).map((k: keyof typeof groupFilterMap) => (
-      <Checkbox
-        justify
-        label={groupFilterMap[k]}
-        id={k}
-        key={k}
-        isChecked={filter.has(k)}
-        onChange={onFilterChange}
-      />
-    ))}
-  </ShokoPanel>
-));
-
 const MissingEpisodeRow = React.memo((
   { episode, rowId }: { episode: WebuiSeriesFileSummaryMissingEpisodeType, rowId: number },
 ) => (
@@ -341,22 +307,13 @@ const SeriesFileSummary = () => {
   const { seriesId } = useParams();
 
   const [mode, setMode] = useState<ModeType>('Series');
-  const [filter, setFilter] = useState<Set<string>>(new Set(Object.keys(groupFilterMap)));
+  const [filter, setFilter] = useState<string[]>([]);
 
-  useEffect(() => setFilter(new Set(Object.keys(groupFilterMap))), [mode]);
-
-  const handleFilterChange = useEventCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    setFilter((prevState) => {
-      const { id: filterOption } = event.target;
-      const newState = new Set(prevState);
-      if (!newState.delete(filterOption)) newState.add(filterOption);
-      return newState;
-    });
-  });
+  const handleFilterChange = useEventCallback((newFilter: string[]) => setFilter(newFilter));
 
   const { data: fileSummary, isFetching, isLoading } = useSeriesFileSummaryQuery(
     toNumber(seriesId!),
-    { groupBy: [...filter].join(',') },
+    { groupBy: filter.join(',') },
     !!seriesId,
   );
 
@@ -394,8 +351,8 @@ const SeriesFileSummary = () => {
 
   return (
     <div className="flex w-full gap-x-6">
-      <div className="flex flex-col gap-y-6">
-        {mode === 'Series' && <GroupFilterPanel filter={filter} onFilterChange={handleFilterChange} />}
+      <div className="flex w-400 flex-col gap-y-6">
+        {mode === 'Series' && <GroupFilterPanel onFilterChange={handleFilterChange} mode={mode} />}
         <FileOverview summary={summary} />
       </div>
 
